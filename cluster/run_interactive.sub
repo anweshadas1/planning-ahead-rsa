@@ -1,0 +1,15 @@
+# HTCondor submit file for an interactive session, useful for debugging a
+# single scenario before launching the full sweep.
+#
+#   condor_submit -interactive cluster/run_interactive.sub
+#
+# Then, inside the session:
+#   cd $HOME/rsa_planning_aamas26
+#   python3 run_pipeline.py simulate --model full --limit 1 --processes 4
+
+universe        = vanilla
+request_CPUs    = 8
+request_memory  = 64G
+request_GPUs    = 0
+
+queue 1

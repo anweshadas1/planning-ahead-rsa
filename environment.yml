@@ -1,0 +1,12 @@
+# conda/mamba equivalent of requirements.txt.
+#   mamba env create -f environment.yml && mamba activate rsa-planning
+name: rsa-planning
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy>=1.23,<2.0
+  - pandas>=1.5,<2.3
+  - scipy>=1.9,<1.14
+  - openpyxl>=3.0
+  - pip

@@ -1,0 +1,7 @@
+property_type,min_range,max_range,type,critical_start,relation
+Battery,0,100,continuous,10,state value < critical start
+WindSpeed,0,30,continuous,18,state value > critical start
+Rotor,0,1,binary,0,state value == critical start
+Altitude,50,110,continuous,100,state value > critical start
+NoFlyZone,0,1,binary,0,state value == critical start
+Distance,0,100,continuous,1,state value < critical start

@@ -1,0 +1,24 @@
+# HTCondor submit file for one model variant of the sweep.
+#
+#   condor_submit cluster/run_job.sub -append 'arguments = full'
+#
+# The paper's runs used roughly 40 concurrent jobs on a pool of Linux machines,
+# each with at least 30 CPU cores and 640 GB RAM. No GPU is used. Memory is the
+# binding constraint: the planning search holds the H=7 sequence tree and the
+# per-sequence belief states in memory.
+
+universe        = vanilla
+executable      = cluster/run_job.sh
+arguments       = full
+
+output          = logs/rsa_planning.$(ClusterId).$(ProcId).out
+error           = logs/rsa_planning.$(ClusterId).$(ProcId).err
+log             = logs/rsa_planning.$(ClusterId).log
+
+request_CPUs    = 30
+request_memory  = 640G
+request_GPUs    = 0
+
+environment     = "REPO_DIR=$ENV(HOME)/rsa_planning_aamas26 RSA_PLANNING_OUTPUT=/scratch/$ENV(USER)/rsa_planning_output OMP_NUM_THREADS=30"
+
+queue 1

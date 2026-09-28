@@ -1,0 +1,303 @@
+---
+title: "Time-RSA Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+```
+
+```{r config}
+# Path to the long-format comparison table produced by:
+#     python run_pipeline.py compare
+# Override it here if your output lives elsewhere (e.g. RSA_PLANNING_OUTPUT).
+comparison_csv <- "../output/comparisons/comparison_long.csv"
+
+stopifnot(file.exists(comparison_csv))
+```
+
+```{r}
+data <- read.csv(comparison_csv) %>%
+  separate(tc_id, into = c("lab", "id", "numcrit", "awar")) %>%
+  unite(tc_id, id, numcrit) %>%
+  select(-lab, -awar)
+```
+
+# Analysis for WHEN:
+
+## 1. Proportion of Missed Critical: \# missed_critical / totalnum_critical
+
+a. COMBO of both planning1:belief_tracking1 -- strong reduction, better than each individually
+b. both significant, but: belief_tracking1 (myopic) > planning (uniform)
+
+
+```{r}
+for_when1 <- data %>%
+  select(tc_id, dispersion = density, num_critical_prop, sharing_metric, user_general_aware, user_critical_aware, model_name, prop_missed_critical) %>%
+  mutate(user_general_aware = 
+           factor(user_general_aware, levels = c("unaware", "aware")),
+         user_critical_aware = 
+           user_critical_aware %>% str_remove("%") %>% as.numeric(),
+         planning = if_else(model_name %in% c("full", "uniform"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         belief_tracking = if_else(model_name %in% c("full", "myopic"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         dispersion.c = scale(dispersion, 
+                           center=TRUE, scale=FALSE) %>% as.vector(),
+         num_critical_prop.c = scale(num_critical_prop, 
+                                   center=TRUE, scale=FALSE)  %>% as.vector(),
+         sharing_metric.c = scale(sharing_metric, 
+                                center=TRUE, scale=FALSE) %>% as.vector(),
+         user_critical_aware.c = scale(user_critical_aware,
+                                       center=TRUE, scale=FALSE) %>% as.vector())
+
+contrasts(for_when1$user_general_aware) <- c(-1, 1)
+contrasts(for_when1$planning) <- c(-1, 1)
+contrasts(for_when1$belief_tracking) <- c(-1, 1)
+```
+
+```{r}
+lm_when1 <- lmer(prop_missed_critical ~ planning + belief_tracking + planning:belief_tracking +
+                num_critical_prop.c + dispersion.c + sharing_metric.c + 
+                user_critical_aware.c + user_general_aware +
+                planning:num_critical_prop.c + 
+                planning:dispersion.c + 
+                planning:sharing_metric.c +
+                planning:user_critical_aware.c + 
+                planning:user_general_aware +
+                belief_tracking:num_critical_prop.c + 
+                belief_tracking:dispersion.c + 
+                belief_tracking:sharing_metric.c +
+                belief_tracking:user_critical_aware.c + 
+                belief_tracking:user_general_aware +
+                planning:belief_tracking:num_critical_prop.c + 
+                planning:belief_tracking:dispersion.c + 
+                planning:belief_tracking:sharing_metric.c +
+                planning:belief_tracking:user_critical_aware.c + 
+                planning:belief_tracking:user_general_aware +
+                num_critical_prop.c:dispersion.c +
+                num_critical_prop.c:sharing_metric.c +
+                num_critical_prop.c:user_critical_aware.c +
+                num_critical_prop.c:user_general_aware +
+                dispersion.c:sharing_metric.c +
+                dispersion.c:user_critical_aware.c +
+                dispersion.c:user_general_aware +
+                sharing_metric.c:user_critical_aware.c +
+                sharing_metric.c:user_general_aware +
+                user_critical_aware.c:user_general_aware +
+              (1 | tc_id),
+              data=for_when1)
+
+summary(lm_when1)
+```
+
+```{r}
+pairwise_models <- emmeans(lm_when1, pairwise ~ planning*belief_tracking, pbkrtest.limit = 3200)
+summary(pairwise_models)
+```
+
+## 2. Proportion of Missed Critical Properties which were Low Awareness: \# missed_low_critical / \# critical low aware
+
+Similar trends as above, but the benefit of planning seems to be further low: no sign. difference between Baseline and Uniform (although this is better ofc)!
+
+```{r}
+for_when2 <- data %>%
+  select(tc_id, dispersion = density, num_critical_prop, sharing_metric, user_general_aware, user_critical_aware, model_name, prop_missed_low_critical) %>%
+  mutate(user_general_aware = 
+           factor(user_general_aware, levels = c("unaware", "aware")),
+         user_critical_aware = 
+           user_critical_aware %>% str_remove("%") %>% as.numeric(),
+         planning = if_else(model_name %in% c("full", "uniform"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         belief_tracking = if_else(model_name %in% c("full", "myopic"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         dispersion.c = scale(dispersion, 
+                           center=TRUE, scale=FALSE) %>% as.vector(),
+         num_critical_prop.c = scale(num_critical_prop, 
+                                   center=TRUE, scale=FALSE)  %>% as.vector(),
+         sharing_metric.c = scale(sharing_metric, 
+                                center=TRUE, scale=FALSE) %>% as.vector(),
+         user_critical_aware.c = scale(user_critical_aware,
+                                       center=TRUE, scale=FALSE) %>% as.vector())
+
+contrasts(for_when2$user_general_aware) <- c(-1, 1)
+contrasts(for_when2$planning) <- c(-1, 1)
+contrasts(for_when2$belief_tracking) <- c(-1, 1)
+
+lm_when2 <- lmer(prop_missed_low_critical ~ planning + belief_tracking + planning:belief_tracking +
+                num_critical_prop.c + dispersion.c + sharing_metric.c + 
+                user_critical_aware.c + user_general_aware +
+                planning:num_critical_prop.c + 
+                planning:dispersion.c + 
+                planning:sharing_metric.c +
+                planning:user_critical_aware.c + 
+                planning:user_general_aware +
+                belief_tracking:num_critical_prop.c + 
+                belief_tracking:dispersion.c + 
+                belief_tracking:sharing_metric.c +
+                belief_tracking:user_critical_aware.c + 
+                belief_tracking:user_general_aware +
+                planning:belief_tracking:num_critical_prop.c + 
+                planning:belief_tracking:dispersion.c + 
+                planning:belief_tracking:sharing_metric.c +
+                planning:belief_tracking:user_critical_aware.c + 
+                planning:belief_tracking:user_general_aware +
+                num_critical_prop.c:dispersion.c +
+                num_critical_prop.c:sharing_metric.c +
+                num_critical_prop.c:user_critical_aware.c +
+                num_critical_prop.c:user_general_aware +
+                dispersion.c:sharing_metric.c +
+                dispersion.c:user_critical_aware.c +
+                dispersion.c:user_general_aware +
+                sharing_metric.c:user_critical_aware.c +
+                sharing_metric.c:user_general_aware +
+                user_critical_aware.c:user_general_aware +
+              (1 | tc_id),
+              data=for_when2)
+
+summary(lm_when2)
+```
+
+```{r}
+pairwise_models <- emmeans(lm_when2, pairwise ~ planning*belief_tracking, pbkrtest.limit = 3200)
+summary(pairwise_models)
+```
+
+## 3. Time to First Alert about a Low Awareness Critical Property:
+
+both decrease, but that due to belief tracking is larger.
+
+```{r}
+for_when3 <- data %>%
+  select(tc_id, dispersion = density, num_critical_prop, sharing_metric, user_general_aware, user_critical_aware, model_name, med_delay_low) %>%
+  # Just to be safe removing instances where low awareness situations didn't occur
+  filter(med_delay_low != -1) %>%
+  mutate(user_general_aware = 
+           factor(user_general_aware, levels = c("unaware", "aware")),
+         user_critical_aware = 
+           user_critical_aware %>% str_remove("%") %>% as.numeric(),
+         planning = if_else(model_name %in% c("full", "uniform"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         belief_tracking = if_else(model_name %in% c("full", "myopic"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         dispersion.c = scale(dispersion, 
+                           center=TRUE, scale=FALSE) %>% as.vector(),
+         num_critical_prop.c = scale(num_critical_prop, 
+                                   center=TRUE, scale=FALSE)  %>% as.vector(),
+         sharing_metric.c = scale(sharing_metric, 
+                                center=TRUE, scale=FALSE) %>% as.vector(),
+         user_critical_aware.c = scale(user_critical_aware,
+                                       center=TRUE, scale=FALSE) %>% as.vector())
+
+
+contrasts(for_when3$user_general_aware) <- c(-1, 1)
+contrasts(for_when3$planning) <- c(-1, 1)
+contrasts(for_when3$belief_tracking) <- c(-1, 1)
+
+lm_when3 <- lmer(med_delay_low ~ planning + belief_tracking + planning:belief_tracking +
+                num_critical_prop.c + dispersion.c + sharing_metric.c + 
+                user_critical_aware.c + user_general_aware +
+                planning:num_critical_prop.c + 
+                planning:dispersion.c + 
+                planning:sharing_metric.c +
+                planning:user_critical_aware.c + 
+                planning:user_general_aware +
+                belief_tracking:num_critical_prop.c + 
+                belief_tracking:dispersion.c + 
+                belief_tracking:sharing_metric.c +
+                belief_tracking:user_critical_aware.c + 
+                belief_tracking:user_general_aware +
+                planning:belief_tracking:num_critical_prop.c + 
+                planning:belief_tracking:dispersion.c + 
+                planning:belief_tracking:sharing_metric.c +
+                planning:belief_tracking:user_critical_aware.c + 
+                planning:belief_tracking:user_general_aware +
+                num_critical_prop.c:dispersion.c +
+                num_critical_prop.c:sharing_metric.c +
+                num_critical_prop.c:user_critical_aware.c +
+                num_critical_prop.c:user_general_aware +
+                dispersion.c:sharing_metric.c +
+                dispersion.c:user_critical_aware.c +
+                dispersion.c:user_general_aware +
+                sharing_metric.c:user_critical_aware.c +
+                sharing_metric.c:user_general_aware +
+                user_critical_aware.c:user_general_aware +
+              (1 | tc_id),
+              data=for_when3)
+
+summary(lm_when3)
+```
+
+```{r}
+pairwise_models <- emmeans(lm_when3, pairwise ~ planning*belief_tracking)
+summary(pairwise_models)
+```
+
+## 4. Prioritization Index
+
+### model prioritizes alerting about low-awareness critical properties faster - less delay? (+ve: Low-awareness; -ve high-aware/other; 0: discard)
+
+BOTH uniform and baseline unable to prioritize low awareness properties, as would be expected.
+Myopic seems to not prioritize, however doesn't have good confidence.
+Only the full model can actually show statistically significant preference for low awareness crit. props
+
+
+```{r}
+for_when4 <- data %>%
+  select(tc_id, dispersion = density, num_critical_prop, sharing_metric, user_general_aware, user_critical_aware, model_name, prioritization_index) %>%
+  mutate(user_general_aware = 
+           factor(user_general_aware, levels = c("unaware", "aware")),
+         user_critical_aware = 
+           user_critical_aware %>% str_remove("%") %>% as.numeric(),
+         planning = if_else(model_name %in% c("full", "uniform"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         belief_tracking = if_else(model_name %in% c("full", "myopic"), "yes", "no") %>% factor(levels = c("no", "yes")),
+         dispersion.c = scale(dispersion, 
+                           center=TRUE, scale=FALSE) %>% as.vector(),
+         num_critical_prop.c = scale(num_critical_prop, 
+                                   center=TRUE, scale=FALSE)  %>% as.vector(),
+         sharing_metric.c = scale(sharing_metric, 
+                                center=TRUE, scale=FALSE) %>% as.vector(),
+         user_critical_aware.c = scale(user_critical_aware,
+                                       center=TRUE, scale=FALSE) %>% as.vector())
+
+contrasts(for_when4$user_general_aware) <- c(-1, 1)
+contrasts(for_when4$planning) <- c(-1, 1)
+contrasts(for_when4$belief_tracking) <- c(-1, 1)
+
+lm_when4 <- lmer(prioritization_index ~ planning + belief_tracking + planning:belief_tracking +
+                num_critical_prop.c + dispersion.c + sharing_metric.c + 
+                user_critical_aware.c + user_general_aware +
+                planning:num_critical_prop.c + 
+                planning:dispersion.c + 
+                planning:sharing_metric.c +
+                planning:user_critical_aware.c + 
+                planning:user_general_aware +
+                belief_tracking:num_critical_prop.c + 
+                belief_tracking:dispersion.c + 
+                belief_tracking:sharing_metric.c +
+                belief_tracking:user_critical_aware.c + 
+                belief_tracking:user_general_aware +
+                planning:belief_tracking:num_critical_prop.c + 
+                planning:belief_tracking:dispersion.c + 
+                planning:belief_tracking:sharing_metric.c +
+                planning:belief_tracking:user_critical_aware.c + 
+                planning:belief_tracking:user_general_aware +
+                num_critical_prop.c:dispersion.c +
+                num_critical_prop.c:sharing_metric.c +
+                num_critical_prop.c:user_critical_aware.c +
+                num_critical_prop.c:user_general_aware +
+                dispersion.c:sharing_metric.c +
+                dispersion.c:user_critical_aware.c +
+                dispersion.c:user_general_aware +
+                sharing_metric.c:user_critical_aware.c +
+                sharing_metric.c:user_general_aware +
+                user_critical_aware.c:user_general_aware +
+              (1 | tc_id),
+              data=for_when4)
+
+summary(lm_when4)
+```
+
+```{r}
+pairwise_models <- emmeans(lm_when4, pairwise ~ planning*belief_tracking, pbkrtest.limit = 3200)
+summary(pairwise_models)
+```

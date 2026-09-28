@@ -1,0 +1,301 @@
+---
+title: "TimeRSA Plots"
+author: "Jack Duff"
+date: "2025-07-18"
+output: 
+  html_document:
+    df_print: paged
+---
+
+```{r knitr options, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+```
+
+```{r setup}
+library(tidyverse)
+
+# ggplot <- function(...) ggplot2::ggplot(...) +
+#   scale_color_manual(values = c("Baseline" = "black", "Myopic" = "dodgerblue4", "Uniform" = "firebrick3", "Full" = "magenta4")) +
+#   scale_fill_manual(values = c("Baseline" = "black", "Myopic" = "dodgerblue4", "Uniform" = "firebrick3", "Full" = "magenta4")) +
+#   scale_shape_manual(values = c("Baseline" = 21, "Myopic" = 22, "Uniform" = 24, "Full" = 23)) +
+#   theme_bw() +
+#   theme(strip.background = element_rect(fill = "black"), strip.text = element_text(color = "white"))
+
+
+# ggplot <- function(...) ggplot2::ggplot(...) +
+#   scale_color_manual(values = c("Baseline" = "firebrick3", "Myopic" = "dodgerblue4", "Uniform" = "goldenrod1", "Full" = "darkolivegreen4")) +
+#   scale_fill_manual(values = c("Baseline" = "firebrick3", "Myopic" = "dodgerblue4", "Uniform" = "goldenrod1", "Full" = "darkolivegreen4")) +
+#   scale_shape_manual(values = c("Baseline" = 21, "Myopic" = 22, "Uniform" = 24, "Full" = 23)) +
+#   theme_bw() +
+#   theme(strip.background = element_rect(fill = "black"), strip.text = element_text(color = "white"))
+
+
+ggplot <- function(...) ggplot2::ggplot(...) +
+scale_color_manual(
+values = c("Baseline" = "firebrick3", "Myopic" = "dodgerblue4", "Uniform" = "goldenrod1", "Full" = "darkolivegreen4"),
+labels = c(
+"Baseline" = "Dynamic RSA (d-RSA)",
+"Myopic" = "d-RSA + Priors",
+"Uniform" = "d-RSA + Planning",
+"Full" = "d-RSA + Priors + Planning"
+)
+) +
+scale_fill_manual(
+values = c("Baseline" = "firebrick3", "Myopic" = "dodgerblue4", "Uniform" = "goldenrod1", "Full" = "darkolivegreen4"),
+labels = c(
+"Baseline" = "Dynamic RSA (d-RSA)",
+"Myopic" = "d-RSA + Priors",
+"Uniform" = "d-RSA + Planning",
+"Full" = "d-RSA + Priors + Planning"
+)
+) +
+scale_shape_manual(
+values = c("Baseline" = 21, "Myopic" = 22, "Uniform" = 24, "Full" = 23),
+labels = c(
+"Baseline" = "Dynamic RSA (d-RSA)",
+"Myopic" = "d-RSA + Priors",
+"Uniform" = "d-RSA + Planning",
+"Full" = "d-RSA + Priors + Planning"
+)
+) +
+theme_bw() +
+theme(strip.background = element_rect(fill = "black"), strip.text = element_text(color = "white"))
+```
+
+```{r config}
+# Path to the long-format comparison table produced by:
+#     python run_pipeline.py compare
+# Override it here if your output lives elsewhere (e.g. RSA_PLANNING_OUTPUT).
+comparison_csv <- "../output/comparisons/comparison_long.csv"
+
+stopifnot(file.exists(comparison_csv))
+```
+
+```{r import}
+data <- read.csv(comparison_csv) %>%
+  rename(dispersion = density) %>%
+  mutate(model_name = str_to_title(model_name) %>%
+    factor(levels = c("Baseline", "Myopic", "Uniform", "Full")))
+  
+```
+
+# Plot 1: Reward by number of critical props
+
+```{r plot1}
+for1 <- data %>%
+  group_by(model_name, num_critical_prop) %>%
+  summarize(CI = list(mean_cl_boot(total_reward) %>% 
+                        rename(Reward=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plot1 <- ggplot(for1) +
+  aes(x = num_critical_prop, y = Reward, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  scale_x_continuous(n.breaks = 3) +
+  labs(x = "Number of Critical Properties", y = "Average Total Reward", fill = "Model", color = "Model", shape = "Model")
+plot1
+
+ggsave("plots/reward_by_num_crit.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot 2: Reward by critical dispersion
+
+```{r plot2}
+for2 <- data %>%
+  group_by(model_name, dispersion) %>%
+  summarize(CI = list(mean_cl_boot(total_reward) %>% 
+                        rename(Reward=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plot2 <- ggplot(for2) +
+  aes(x = dispersion, y = Reward, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  scale_x_continuous(n.breaks = 4) +
+  labs(x = "Temporal Dispersions (Time Between Onsets)", y = "Average Total Reward", fill = "Model", color = "Model", shape = "Model")
+plot2
+
+ggsave("plots/reward_by_dispersion.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot 3: Reward by critical overlap
+
+This is hopelessly confounded by number of critical items....
+
+```{r plot3}
+for3 <- data %>%
+  mutate(sharing_metric = round(sharing_metric, 1)) %>%
+  group_by(model_name, sharing_metric) %>%
+  summarize(CI = list(mean_cl_boot(total_reward) %>% 
+                        rename(Reward=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plot3 <- ggplot(for3) +
+  aes(x = sharing_metric, y = Reward, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.05)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.05), width=0.2) +
+  geom_point(position=position_dodge(width=0.05), size = 2) + 
+  labs(x = "Critical Feature Overlap", y = "Average Total Reward", fill = "Model", color = "Model", shape = "Model")
+plot3
+
+ggsave("plots/reward_by_overlap.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot 4: Reward by user awareness
+
+```{r plot4}
+for4 <- data %>%
+  mutate(user_general_aware = if_else(user_general_aware == "unaware", 
+                                      "Low General Awareness", 
+                                      "High General Awareness") %>%
+           factor(levels = c("Low General Awareness", "High General Awareness"))) %>%
+  group_by(model_name, user_critical_aware, user_general_aware) %>%
+  summarize(CI = list(mean_cl_boot(total_reward) %>% 
+                        rename(Reward=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plot4 <- ggplot(for4) +
+  aes(x = user_critical_aware, y = Reward, color = model_name, fill = model_name, shape = model_name, group = model_name) +
+  facet_wrap(vars(user_general_aware)) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  labs(x = "Prior User Awareness of Critical Props.", y = "Average Total Reward", fill = "Model", color = "Model", shape = "Model")
+plot4
+
+ggsave("plots/reward_by_user_aware.png", width = 6, height = 3, units = "in", dpi = 1000)
+
+```
+
+# Plot 5: Reward by user critical awareness
+
+```{r plot5}
+for5 <- data %>%
+  group_by(model_name, user_critical_aware) %>%
+  summarize(CI = list(mean_cl_boot(total_reward) %>% 
+                        rename(Reward=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plot5 <- ggplot(for5) +
+  aes(x = user_critical_aware, y = Reward, color = model_name, fill = model_name, shape = model_name, group = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  labs(x = "Prior User Awareness of Critical Props.", y = "Average Total Reward", fill = "Model", color = "Model", shape = "Model")
+plot5
+
+ggsave("plots/reward_by_user_crit_aware.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot A1: Specificity by number of critical props
+
+```{r plota1}
+fora1 <- data %>%
+  group_by(model_name, num_critical_prop) %>%
+  summarize(CI = list(mean_cl_boot(verbosity_ratio) %>% 
+                        rename(Specificity=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plota1 <- ggplot(fora1) +
+  aes(x = num_critical_prop, y = Specificity, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  scale_x_continuous(n.breaks = 3) +
+  labs(x = "# Critical Properties", y = "Average Specificity Ratio (Spec/Non-Spec)", fill = "Model", color = "Model", shape = "Model")
+plota1
+
+ggsave("plots/specificity_by_num_crit.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot A4: Specificity by user awareness
+
+```{r plota4}
+fora4 <- data %>%
+  mutate(user_general_aware = if_else(user_general_aware == "unaware", 
+                                      "Low General Awareness", 
+                                      "High General Awareness") %>%
+           factor(levels = c("Low General Awareness", "High General Awareness"))) %>%
+  group_by(model_name, user_critical_aware, user_general_aware) %>%
+  summarize(CI = list(mean_cl_boot(verbosity_ratio) %>% 
+                        rename(Specificity=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plota4 <- ggplot(fora4) +
+  aes(x = user_critical_aware, y = Specificity, color = model_name, fill = model_name, shape = model_name, group = model_name) +
+  facet_wrap(vars(user_general_aware)) +
+  geom_line(position=position_dodge(width=0.4)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.4), width=0.2) +
+  geom_point(position=position_dodge(width=0.4), size = 2) + 
+  labs(x = "Prior User Awareness of Critical Properties", y = "Avg. Specificity Ratio (Spec./Non-Spec.)", fill = "Model", color = "Model", shape = "Model")
+plota4
+
+ggsave("plots/specificity_by_user_aware.png", width = 6, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot B1: LA Crit Delay by number of critical props
+
+```{r plotb1}
+forb1 <- data %>%
+  filter(med_delay_low > 0) %>% # na values were mapped to -1
+  group_by(model_name, num_critical_prop) %>%
+  summarize(CI = list(mean_cl_boot(med_delay_low) %>% 
+                        rename(Delay=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plotb1 <- ggplot(forb1) +
+  aes(x = num_critical_prop, y = Delay, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  scale_x_continuous(n.breaks = 3) +
+  labs(x = "Number of Critical Properties", y = "Avg. Med. Delay for Low-Aware Alerts", fill = "Model", color = "Model", shape = "Model")
+plotb1
+
+ggsave("plots/delay_by_num_crit.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+# Plot B2: LA Crit Delay by dispersion
+
+```{r plotb2}
+forb2 <- data %>%
+  filter(med_delay_low > 0) %>% # na values were mapped to -1
+  group_by(model_name, dispersion) %>%
+  summarize(CI = list(mean_cl_boot(med_delay_low) %>% 
+                        rename(Delay=y, Lwr=ymin, Upr=ymax))) %>% 
+  unnest(cols = c(CI))
+
+plotb2 <- ggplot(forb2) +
+  aes(x = dispersion, y = Delay, color = model_name, fill = model_name, shape = model_name) +
+  geom_line(position=position_dodge(width=0.2)) + 
+  geom_errorbar(aes(ymin=Lwr, ymax=Upr), position=position_dodge(width=0.2), width=0.2) +
+  geom_point(position=position_dodge(width=0.2), size = 2) + 
+  scale_x_continuous(n.breaks = 4) +
+  labs(x = "Critical Dispersion (Time Between Onsets)", y = "Avg. Median Delay for Lo-Aware. Crit. Props.", fill = "Model", color = "Model", shape = "Model")
+plotb2
+
+ggsave("plots/delay_by_dispersion.png", width = 5, height = 3, units = "in", dpi = 800)
+
+```
+
+
+```{r id}
+# identifying the cases with the highest gain
+
+gain <- data %>% select(tc_id, model_name, props = list_cr_prop_aware, seq = sequence_rank1, r = total_reward) %>%
+  filter(model_name %in% c("Baseline", "Full")) %>%
+  pivot_wider(id_cols = c(tc_id, props), names_from = model_name, values_from = c(seq, r)) %>%
+  mutate(Gain = r_Full - r_Baseline)
+summary(gain)
+
+```

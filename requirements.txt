@@ -1,0 +1,11 @@
+# Runtime dependencies for the simulation pipeline.
+#
+# numpy must stay below 2.0. The pipeline serialises belief dictionaries into
+# its result files and reads them back with ast.literal_eval; under numpy >= 2
+# scalars repr as "np.float64(0.5)" rather than "0.5", which that round-trip
+# cannot parse. The paper's runs used Python 3.9.21 with numpy 1.x.
+
+numpy>=1.23,<2.0
+pandas>=1.5,<2.3
+scipy>=1.9,<1.14
+openpyxl>=3.0
